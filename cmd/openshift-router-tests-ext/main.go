@@ -11,7 +11,7 @@ import (
 	"github.com/spf13/cobra"
 
 	// The import below is necessary to ensure that the OAS operator tests are registered with the extension.
-	_ "github.com/openshift/router/test/extended"
+	_ "github.com/openshift/router/test/e2e"
 )
 
 func main() {
