@@ -7,20 +7,19 @@ import (
 	"github.com/openshift-eng/openshift-tests-extension/pkg/cmd"
 	e "github.com/openshift-eng/openshift-tests-extension/pkg/extension"
 	g "github.com/openshift-eng/openshift-tests-extension/pkg/ginkgo"
-
 	"github.com/spf13/cobra"
 
-	// The import below is necessary to ensure that the OAS operator tests are registered with the extension.
-	_ "github.com/openshift/router/test/e2e"
+	//_ "github.com/openshift-eng/openshift-tests-extension/test/example"
+	_ "github.com/openshift/router/test/extended"
+	//_ "github.com/openshift/router/test/e2e"
 )
 
 func main() {
 	registry := e.NewRegistry()
-	ext := e.NewExtension("openshift", "payload", "router")
+	ext := e.NewExtension("openshift", "payload", "example-tests123")
 
-	// Suite: all (includes everything)
 	ext.AddSuite(e.Suite{
-		Name: "openshift/router/all",
+		Name: "router/all",
 	})
 
 	specs, err := g.BuildExtensionTestSpecsFromOpenShiftGinkgoSuite()
@@ -37,7 +36,9 @@ func main() {
 
 	root.AddCommand(cmd.DefaultExtensionCommands(registry)...)
 
-	if err := root.Execute(); err != nil {
+	if err := func() error {
+		return root.Execute()
+	}(); err != nil {
 		os.Exit(1)
 	}
 }

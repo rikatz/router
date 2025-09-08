@@ -31,7 +31,7 @@ build:
 	$(GO_BUILD_RECIPE)
 
 router-tests-ext:
-	CGO_ENABLED=1 $(GO) build -o openshift-router-tests-ext $(GO_GCFLAGS) $(GO_LDFLAGS) $(PACKAGE)/cmd/openshift-router-tests-ext
+	GO_COMPLIANCE_POLICY="exempt_all" go build -ldflags "$(LDFLAGS)" ./cmd/openshift-router-tests-ext/...
 
 images/router/*/Dockerfile: images/router/base/Dockerfile
 	imagebuilder -t registry.svc.ci.openshift.org/openshift/origin-v4.0:`basename $(@D)`-router -f images/router/`basename $(@D)`/Dockerfile .
