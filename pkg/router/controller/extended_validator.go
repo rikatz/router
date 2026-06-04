@@ -2,6 +2,7 @@ package controller
 
 import (
 	"fmt"
+	"net"
 
 	kapi "k8s.io/api/core/v1"
 
@@ -40,7 +41,67 @@ func (p *ExtendedValidator) HandleNode(eventType watch.EventType, node *kapi.Nod
 
 // HandleEndpoints processes watch events on the Endpoints resource.
 func (p *ExtendedValidator) HandleEndpoints(eventType watch.EventType, endpoints *kapi.Endpoints) error {
+	for _, subset := range endpoints.Subsets {
+		for _, addr := range subset.Addresses {
+			if err := validateEndpointAddress(addr.IP); err != nil {
+				log.Error(err, "skipping endpoints due to invalid configuration", "endpoints", fmt.Sprintf("%s/%s", endpoints.Namespace, endpoints.Name))
+				// We don't have a recordEndpointRejection mechanism, so we log and drop the event.
+				// This prevents the router from proxying to the malicious backend.
+				return fmt.Errorf("invalid endpoint configuration: %v", err)
+			}
+		}
+		for _, addr := range subset.NotReadyAddresses {
+			if err := validateEndpointAddress(addr.IP); err != nil {
+				log.Error(err, "skipping endpoints due to invalid configuration", "endpoints", fmt.Sprintf("%s/%s", endpoints.Namespace, endpoints.Name))
+				return fmt.Errorf("invalid endpoint configuration: %v", err)
+			}
+		}
+	}
 	return p.plugin.HandleEndpoints(eventType, endpoints)
+}
+
+func validateEndpointAddress(address string) error {
+	ip := net.ParseIP(address)
+	if ip != nil {
+		return checkRestrictedIP(ip)
+	}
+
+	// If not a valid IP, assume it is an FQDN and resolve it
+	ips, err := net.LookupIP(address)
+	if err != nil {
+		// If we can't resolve it, we can't be sure it's safe. However, DNS resolution failures
+		// might be transient. For security, failing closed or just logging might be debated.
+		// Let's assume if it doesn't resolve right now, we can't validate it.
+		// We'll allow transient resolution errors to just pass through, as the router itself
+		// would fail to resolve it if it's truly unresolvable. But if it's an SSRF, we MUST block.
+		// Actually, HAProxy resolves it at runtime. If we fail to resolve, HAProxy might succeed later.
+		// For CVE-2026-42965, the researcher's FQDN resolves. If they use a malicious DNS server that
+		// returns a timeout to us but 169.254 to HAProxy, they bypass this.
+		// To be safe, if we can't resolve an FQDN, we should probably fail. But let's check
+		// what existing validation does. Since there is none, let's just do best-effort or fail closed.
+		// For now, let's fail if we can't verify, or maybe just log?
+		// Actually, standard practice for SSRF is to fail closed if unresolvable.
+		return fmt.Errorf("failed to resolve FQDN %q: %v", address, err)
+	}
+
+	for _, resolvedIP := range ips {
+		if err := checkRestrictedIP(resolvedIP); err != nil {
+			return fmt.Errorf("FQDN %q resolves to restricted IP: %v", address, err)
+		}
+	}
+
+	return nil
+}
+
+func checkRestrictedIP(ip net.IP) error {
+	// Block cloud metadata and localhost
+	if ip.Equal(net.ParseIP("169.254.169.254")) {
+		return fmt.Errorf("IP address %s is a restricted cloud metadata IP", ip.String())
+	}
+	if ip.IsLoopback() {
+		return fmt.Errorf("IP address %s is a restricted loopback IP", ip.String())
+	}
+	return nil
 }
 
 // HandleRoute processes watch events on the Route resource.
