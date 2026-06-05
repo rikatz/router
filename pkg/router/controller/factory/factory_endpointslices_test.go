@@ -92,6 +92,7 @@ func newEndpointSliceTestSetup(plugin router.Plugin, initialObjects ...runtime.O
 		fakeProject.Projects(),
 		client,
 		false, // watch endpoints
+		true,  // use endpoint address validation
 	).Create(plugin, false, stopCh)
 
 	return client, stopCh
@@ -236,6 +237,7 @@ func TestEndpointSlicesAdd(t *testing.T) {
 					discoveryv1.LabelServiceName: "service-b",
 				},
 			},
+			AddressType: discoveryv1.AddressTypeIPv4,
 		},
 		expectedServiceName:     "service-b",
 		expectedEventType:       watch.Modified,

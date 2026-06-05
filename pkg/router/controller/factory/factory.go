@@ -54,21 +54,23 @@ type RouterControllerFactory struct {
 	ProjectLabels   labels.Selector
 	RouteModifierFn func(route *routev1.Route)
 
-	informers      map[reflect.Type]kcache.SharedIndexInformer
-	watchEndpoints bool
+	informers                 map[reflect.Type]kcache.SharedIndexInformer
+	watchEndpoints            bool
+	endpointAddressValidation bool
 }
 
 // NewDefaultRouterControllerFactory initializes a default router controller factory.
-func NewDefaultRouterControllerFactory(rc routeclientset.Interface, pc projectclient.ProjectInterface, kc kclientset.Interface, watchEndpoints bool) *RouterControllerFactory {
+func NewDefaultRouterControllerFactory(rc routeclientset.Interface, pc projectclient.ProjectInterface, kc kclientset.Interface, watchEndpoints bool, endpointAddressValidation bool) *RouterControllerFactory {
 	return &RouterControllerFactory{
 		KClient:        kc,
 		RClient:        rc,
 		ProjectClient:  pc,
 		ResyncInterval: DefaultResyncInterval,
 
-		Namespace:      metav1.NamespaceAll,
-		informers:      map[reflect.Type]kcache.SharedIndexInformer{},
-		watchEndpoints: watchEndpoints,
+		Namespace:                 metav1.NamespaceAll,
+		informers:                 map[reflect.Type]kcache.SharedIndexInformer{},
+		watchEndpoints:            watchEndpoints,
+		endpointAddressValidation: endpointAddressValidation,
 	}
 }
 
@@ -76,8 +78,9 @@ func NewDefaultRouterControllerFactory(rc routeclientset.Interface, pc projectcl
 // resources.
 func (f *RouterControllerFactory) Create(plugin router.Plugin, watchNodes bool, stopCh <-chan struct{}) *routercontroller.RouterController {
 	rc := &routercontroller.RouterController{
-		Plugin:     plugin,
-		WatchNodes: watchNodes,
+		Plugin:                    plugin,
+		WatchNodes:                watchNodes,
+		EndpointAddressValidation: f.endpointAddressValidation,
 
 		NamespaceLabels:        f.NamespaceLabels,
 		FilteredNamespaceNames: make(sets.String),

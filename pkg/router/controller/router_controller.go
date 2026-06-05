@@ -46,7 +46,8 @@ type RouterController struct {
 	ProjectWaitInterval time.Duration
 	ProjectRetries      int
 
-	WatchNodes bool
+	WatchNodes                bool
+	EndpointAddressValidation bool
 }
 
 // Run begins watching and syncing.
@@ -231,6 +232,18 @@ func (c *RouterController) HandleEndpoints(eventType watch.EventType, obj interf
 
 // HandleEndpointSlice handles a single EndpointSlice event and refreshes the router backend.
 func (c *RouterController) HandleEndpointSlice(eventType watch.EventType, objMeta metav1.ObjectMeta, items []discoveryv1.EndpointSlice) {
+	if c.EndpointAddressValidation {
+		filtered := make([]discoveryv1.EndpointSlice, 0, len(items))
+		for _, item := range items {
+			if item.AddressType == discoveryv1.AddressTypeIPv4 || item.AddressType == discoveryv1.AddressTypeIPv6 {
+				filtered = append(filtered, item)
+			} else {
+				log.V(4).Info("endpointslice contains invalid Address type", "name", item.Name, "namespace", item.Namespace, "addressType", item.AddressType)
+			}
+		}
+		items = filtered
+	}
+
 	endpoints := &kapi.Endpoints{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:            objMeta.Name,
